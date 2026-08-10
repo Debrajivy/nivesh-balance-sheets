@@ -1,0 +1,10 @@
+.demo-account.selected {
+  border-color: #315e98;
+  background: #f4f8fd;
+  box-shadow: 0 0 0 2px rgb(49 94 152 / 14%);
+}
+
+.demo-account:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}

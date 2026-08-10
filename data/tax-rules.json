@@ -1,0 +1,1 @@
+{"version":"v2026.04","effectiveDate":"2026-04-01","rules":[{"id":"FA-3","title":"Foreign asset disclosure","severity":"compliance","enabled":true},{"id":"CG-12","title":"Capital-loss set-off review","severity":"opportunity","enabled":true},{"id":"RE-2","title":"Property cost and estimate disclosure","severity":"watch","enabled":true}]}
