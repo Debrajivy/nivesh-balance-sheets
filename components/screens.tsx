@@ -2,29 +2,34 @@
 import { ActionButton, Badge, Metric, Notice, PageHeader, Toggle } from "./ui";
 import { DocumentsWorkspace } from "./documents-workspace";
 import { assets, liabilities, obligations, taxFlags } from "@/lib/mock-data";
+import { LiveAccounting, LiveAccessLog } from "./live-accounting";
+import { redirect } from "next/navigation";
+import { getSession } from "@/lib/server/auth";
+import type { Role } from "@/lib/permissions";
 
 export type Screen = "overview"|"sheet"|"documents"|"inbox"|"processing"|"review"|"refresh"|"tax"|"obligations"|"forecast"|"snapshots"|"delivery"|"families"|"users"|"permissions"|"access"|"billing"|"security";
 const statusTone=(x:string)=>x.includes("Fresh")||x.includes("Processed")?"green":x.includes("Stale")?"red":"amber";
 const Table=({heads,rows}:{heads:string[];rows:React.ReactNode[][]})=><div className="table-wrap"><table><thead><tr>{heads.map(h=><th key={h}>{h}</th>)}</tr></thead><tbody>{rows.map((r,i)=><tr key={i}>{r.map((c,j)=><td key={j}>{c}</td>)}</tr>)}</tbody></table></div>;
 const Section=({title,sub,children}:{title:string;sub?:string;children:React.ReactNode})=><section className="card"><div className="card-head"><h2>{title}</h2>{sub&&<span>{sub}</span>}</div>{children}</section>;
 
-export function ScreenView({screen}:{screen:Screen}){
+const screenRoles:Record<Screen,Role[]>={overview:["operator","principal","ca"],sheet:["operator","principal","ca"],documents:["operator"],inbox:["operator"],processing:["operator"],review:["operator","principal"],refresh:["operator"],tax:["operator","principal","ca"],obligations:["operator","principal"],forecast:["operator","principal","ca"],snapshots:["operator","principal","ca"],delivery:["operator","principal"],families:["admin"],users:["admin"],permissions:["admin"],access:["admin"],billing:["admin"],security:["admin"]};
+export async function ScreenView({screen}:{screen:Screen}){const session=await getSession();if(!session)redirect("/login");const role=session.memberships[0]?.role as Role|undefined;if(!role||!screenRoles[screen].includes(role))redirect(role==="admin"?"/families":"/overview");
  if(screen==="overview") return <Overview/>;
- if(screen==="sheet") return <Sheet/>;
+ if(screen==="sheet") return <LiveAccounting mode="sheet"/>;
  if(screen==="documents") return <Documents/>;
  if(screen==="inbox") return <Inbox/>;
  if(screen==="processing") return <Processing/>;
- if(screen==="review") return <Review/>;
- if(screen==="refresh") return <Refresh/>;
- if(screen==="tax") return <Tax/>;
- if(screen==="obligations") return <Obligations/>;
- if(screen==="forecast") return <Forecast/>;
- if(screen==="snapshots") return <Snapshots/>;
+ if(screen==="review") return <LiveAccounting mode="review"/>;
+ if(screen==="refresh") return <LiveAccounting mode="refresh"/>;
+ if(screen==="tax") return <LiveAccounting mode="tax"/>;
+ if(screen==="obligations") return <LiveAccounting mode="obligations"/>;
+ if(screen==="forecast") return <LiveAccounting mode="forecast"/>;
+ if(screen==="snapshots") return <LiveAccounting mode="snapshots"/>;
  if(screen==="delivery") return <Delivery/>;
  if(screen==="families") return <Families/>;
  if(screen==="users") return <Users/>;
  if(screen==="permissions") return <Permissions/>;
- if(screen==="access") return <Access/>;
+ if(screen==="access") return <LiveAccessLog/>;
  if(screen==="billing") return <Billing/>;
  return <Security/>;
 }
