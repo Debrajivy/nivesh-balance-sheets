@@ -27,7 +27,7 @@ export function DocumentsWorkspace({ compactButton = false }: { compactButton?: 
     const form = new FormData(); form.append("file", file);
     const response = await fetch("/api/documents/upload", { method: "POST", body: form });
     const data = await response.json();
-    setMessage(response.ok ? `Uploaded successfully. AI extracted ${data.extractedItems} accounting item(s). Review them before acceptance.` : data.error || "Upload failed");
+    setMessage(response.ok ? `Uploaded successfully. AI extracted ${data.transactions?.length || 0} transaction(s); ${data.unmapped_transactions?.length || 0} need review. Reconciled: ${data.validation?.reconciled ? "yes" : "no"}.` : data.error || "Upload failed");
     setUploading(false); await load();
     if (input.current) input.current.value = "";
   }

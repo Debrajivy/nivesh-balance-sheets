@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 
 const demos = [
   { role: "operator", title: "Family-office operator", name: "Arjun Mehta", email: "operator@nivesh.demo", initials: "AM", description: "Upload documents, review figures and build statements.", home: "/overview" },
-  { role: "principal", title: "Principal (HNI)", name: "Rajiv Malhotra", email: "principal@nivesh.demo", initials: "RM", description: "View wealth, confirm figures and acknowledge alerts.", home: "/overview" },
+  { role: "principal", title: "Principal (HNI)", name: "Rajiv Malhotra", email: "principal@nivesh.demo", initials: "RM", description: "View wealth, confirm figures and acknowledge alerts.", home: "/balance-sheet" },
   { role: "ca", title: "CA / Advisor", name: "Priya Shah", email: "ca@nivesh.demo", initials: "PS", description: "Review statements and confirm tax observations.", home: "/tax" },
   { role: "admin", title: "Firm admin", name: "Rohan Malhotra", email: "admin@nivesh.demo", initials: "RO", description: "Manage families, users, permissions and access logs.", home: "/families" },
 ] as const;
@@ -31,7 +31,7 @@ export default function Login() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Login failed");
       if (role) localStorage.setItem("nivesh-role", role);
-      router.push(home);
+      router.push(String(data.home || home));
       router.refresh();
     } catch (loginError) {
       setError(loginError instanceof Error ? loginError.message : "Login failed");
@@ -72,7 +72,7 @@ export default function Login() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Signup failed");
       localStorage.setItem("nivesh-role", "principal");
-      router.push("/overview");
+      router.push("/balance-sheet");
       router.refresh();
     } catch (signupError) {
       setError(signupError instanceof Error ? signupError.message : "Signup failed");
