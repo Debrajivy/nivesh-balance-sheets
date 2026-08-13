@@ -6,7 +6,7 @@ describe("accounting invariants",()=>{
  it("holds values above INR 25 lakh",()=>expect(isHeld(base)).toBe(true));
  it("holds confidence below 85 percent",()=>expect(isHeld({...base,amount:100,confidence:84})).toBe(true));
  it("accepts a confirmed material value",()=>expect(accepted([{...base,confirmed:true}])).toHaveLength(1));
- it("calculates assets less liabilities",()=>expect(statement([{...base,amount:100,confirmed:true},{...base,id:"2",category:9,amount:30,confirmed:true}]).netWorth).toBe(70));
+ it("calculates assets less liabilities",()=>expect(statement([{...base,amount:100,confirmed:true},{...base,id:"2",category:20,amount:30,confirmed:true}]).netWorth).toBe(70));
  it("excludes company entities from consolidation",()=>{const entities:Entity[]=[{id:"person",familyId:"f",name:"Person",type:"individual",excludeFromConsolidation:false},{id:"company",familyId:"f",name:"Company",type:"company",excludeFromConsolidation:true}];expect(consolidate([{...base,amount:100,confirmed:true},{...base,id:"2",entityId:"company",amount:500,confirmed:true}],entities)).toHaveLength(1)});
  it("calculates ageing and stale states",()=>{expect(freshness("2026-01-01",30,new Date("2026-02-05")).state).toBe("ageing");expect(freshness("2026-01-01",30,new Date("2026-03-01")).state).toBe("stale")});
  it("converts foreign values using a supplied RBI rate",()=>expect(inrFromForeign(100,83.25)).toBe(8325));

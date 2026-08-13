@@ -16,6 +16,9 @@ const transaction: LedgerTransaction = {
   target_subhead_id: "",
   target_subhead_name: "",
   posting_effect: "INCREASE",
+  personal_section: "INCOME",
+  personal_head_id: "salary_income",
+  personal_head_name: "Salary income",
   mapping_status: "MAPPED",
   confidence_score: 0.98,
   mapping_reason: "Salary credited to the documented bank account.",
@@ -26,7 +29,7 @@ describe("financial document ledger normalization", () => {
     expect(isOpeningBalancePosition({ category: 1, positionRole: "opening", name: "Balance" })).toBe(true);
     expect(isOpeningBalancePosition({ category: 1, name: "Opening bank balance", sourceLocation: "Page 1" })).toBe(true);
     expect(isOpeningBalancePosition({ category: 1, positionRole: "closing", name: "Closing bank balance" })).toBe(false);
-    expect(isOpeningBalancePosition({ category: 9, name: "Opening loan balance" })).toBe(false);
+    expect(isOpeningBalancePosition({ category: 20, name: "Opening loan balance" })).toBe(false);
   });
   it("uses the authoritative PRD account name and recomputes totals", () => {
     const result = normalizeLedgerDocument("doc-1", {
@@ -49,6 +52,28 @@ describe("financial document ledger normalization", () => {
     expect(result.transactions[0].target_head_id).toBe("");
     expect(result.transactions[0].target_subhead_id).toBe("");
     expect(result.unmapped_transactions).toHaveLength(1);
+  });
+
+  it("keeps expense classification separate from balance-sheet mapping", () => {
+    const result = normalizeLedgerDocument("doc-expense", {
+      transactions: [{
+        ...transaction,
+        direction: "DEBIT",
+        original_narration: "SWIGGY FOOD ORDER",
+        amount: 1250,
+        transaction_type: "food",
+        posting_effect: "DECREASE",
+        personal_section: "EXPENSE",
+        personal_head_id: "food_dining",
+        personal_head_name: "Food and dining",
+        mapping_reason: "Food debit reduces the bank account and belongs to food expense analysis."
+      }],
+      validation: { source_transaction_count: 1, output_transaction_count: 1, total_debits: 1250, total_credits: 0, reconciled: true, errors: [] },
+    });
+    expect(result.transactions[0].target_head_id).toBe("1");
+    expect(result.transactions[0].target_head_name).toBe("Bank and cash");
+    expect(result.transactions[0].personal_section).toBe("EXPENSE");
+    expect(result.transactions[0].personal_head_name).toBe("Food and dining");
   });
 
   it("fails reconciliation for omitted or duplicate source rows", () => {

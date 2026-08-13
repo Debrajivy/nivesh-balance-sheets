@@ -1,22 +1,75 @@
 export const PRD_ACCOUNT_HEADS = {
   "1": { section: "ASSETS", name: "Bank and cash" },
-  "2": { section: "ASSETS", name: "Listed investments" },
-  "3": { section: "ASSETS", name: "Unlisted and private holdings" },
-  "4": { section: "ASSETS", name: "Real estate" },
-  "5": { section: "ASSETS", name: "Retirement and small savings" },
-  "6": { section: "ASSETS", name: "Physical and other" },
-  "7": { section: "ASSETS", name: "Loans and advances given" },
-  "8": { section: "ASSETS", name: "Foreign assets" },
-  "9": { section: "LIABILITIES", name: "Home and property loans" },
-  "10": { section: "LIABILITIES", name: "Loans against securities and personal loans" },
-  "11": { section: "LIABILITIES", name: "Business and director liabilities" },
-  "12": { section: "LIABILITIES", name: "Taxes and dues payable" },
+  "2": { section: "ASSETS", name: "Listed equity and securities" },
+  "3": { section: "ASSETS", name: "Mutual funds and managed investments" },
+  "4": { section: "ASSETS", name: "Bonds and fixed income" },
+  "5": { section: "ASSETS", name: "Real estate" },
+  "6": { section: "ASSETS", name: "Private / unlisted businesses" },
+  "7": { section: "ASSETS", name: "Retirement and pension" },
+  "8": { section: "ASSETS", name: "Insurance-linked assets" },
+  "9": { section: "ASSETS", name: "Gold and precious metals" },
+  "10": { section: "ASSETS", name: "Vehicles and personal property" },
+  "11": { section: "ASSETS", name: "Jewellery, art and collectibles" },
+  "12": { section: "ASSETS", name: "Loans and advances given" },
+  "13": { section: "ASSETS", name: "Foreign assets" },
+  "14": { section: "ASSETS", name: "Tax receivables" },
+  "15": { section: "ASSETS", name: "Income receivables" },
+  "16": { section: "ASSETS", name: "Business / professional assets" },
+  "17": { section: "ASSETS", name: "Intellectual property" },
+  "18": { section: "ASSETS", name: "Digital assets" },
+  "19": { section: "ASSETS", name: "Other assets" },
+  "20": { section: "LIABILITIES", name: "Home and property loans" },
+  "21": { section: "LIABILITIES", name: "Personal loans" },
+  "22": { section: "LIABILITIES", name: "Loans against investments" },
+  "23": { section: "LIABILITIES", name: "Credit cards and short-term debt" },
+  "24": { section: "LIABILITIES", name: "Business liabilities" },
+  "25": { section: "LIABILITIES", name: "Taxes and statutory dues" },
+  "26": { section: "LIABILITIES", name: "Property-related payables" },
+  "27": { section: "LIABILITIES", name: "Investment-related payables" },
+  "28": { section: "LIABILITIES", name: "Family / related-party payables" },
+  "29": { section: "LIABILITIES", name: "Other payables" },
+  "30": { section: "CONTINGENT", name: "Guarantees" },
+  "31": { section: "CONTINGENT", name: "Litigation" },
+  "32": { section: "CONTINGENT", name: "Tax disputes" },
+  "33": { section: "CONTINGENT", name: "Other potential exposures" },
 } as const;
 
 export type AccountHeadId = keyof typeof PRD_ACCOUNT_HEADS;
+export type AccountSection = typeof PRD_ACCOUNT_HEADS[AccountHeadId]["section"];
 export type Direction = "DEBIT" | "CREDIT";
 export type PostingEffect = "INCREASE" | "DECREASE";
 export type MappingStatus = "MAPPED" | "REVIEW_REQUIRED";
+export const PERSONAL_TRANSACTION_HEADS = {
+  salary_income: { section: "INCOME", name: "Salary income" },
+  business_income: { section: "INCOME", name: "Business / professional income" },
+  interest_dividend_income: { section: "INCOME", name: "Interest and dividend income" },
+  rental_income: { section: "INCOME", name: "Rental income" },
+  refund_reimbursement: { section: "INCOME", name: "Refunds and reimbursements" },
+  household_expense: { section: "EXPENSE", name: "Household expense" },
+  food_dining: { section: "EXPENSE", name: "Food and dining" },
+  groceries: { section: "EXPENSE", name: "Groceries" },
+  shopping: { section: "EXPENSE", name: "Shopping" },
+  travel: { section: "EXPENSE", name: "Travel" },
+  medical_health: { section: "EXPENSE", name: "Medical and health" },
+  education: { section: "EXPENSE", name: "Education" },
+  utilities: { section: "EXPENSE", name: "Utilities" },
+  rent_maintenance: { section: "EXPENSE", name: "Rent, society and maintenance" },
+  insurance: { section: "EXPENSE", name: "Insurance premium" },
+  tax_payment: { section: "EXPENSE", name: "Tax payment" },
+  emi_loan_payment: { section: "EXPENSE", name: "EMI / loan payment" },
+  fees_charges: { section: "EXPENSE", name: "Bank fees and charges" },
+  gifts_donations: { section: "EXPENSE", name: "Gifts and donations" },
+  cash_withdrawal: { section: "TRANSFER", name: "Cash withdrawal" },
+  own_account_transfer: { section: "TRANSFER", name: "Own account transfer" },
+  investment_movement: { section: "ASSET_MOVEMENT", name: "Investment purchase / redemption" },
+  loan_movement: { section: "LIABILITY_MOVEMENT", name: "Loan drawdown / repayment" },
+  other_income: { section: "INCOME", name: "Other income" },
+  other_expense: { section: "EXPENSE", name: "Other expense" },
+  review_required: { section: "REVIEW", name: "Needs accountant review" }
+} as const;
+
+export type PersonalHeadId = keyof typeof PERSONAL_TRANSACTION_HEADS;
+export type PersonalSection = typeof PERSONAL_TRANSACTION_HEADS[PersonalHeadId]["section"];
 
 export type LedgerTransaction = {
   source_line_id: string;
@@ -27,12 +80,15 @@ export type LedgerTransaction = {
   amount: number;
   direction: Direction;
   transaction_type: string;
-  target_section: "ASSETS" | "LIABILITIES" | "";
+  target_section: AccountSection | "";
   target_head_id: AccountHeadId | "";
   target_head_name: string;
   target_subhead_id: "";
   target_subhead_name: "";
   posting_effect: PostingEffect;
+  personal_section: PersonalSection;
+  personal_head_id: PersonalHeadId;
+  personal_head_name: string;
   mapping_status: MappingStatus;
   confidence_score: number;
   mapping_reason: string;
@@ -82,11 +138,15 @@ export function normalizeLedgerDocument(documentId: string, input: ModelLedgerDo
     const invalidDate = !/^\d{4}-\d{2}-\d{2}$/.test(String(raw.transaction_date || ""));
     const unsupportedSubhead = Boolean(raw.target_subhead_id || raw.target_subhead_name);
     const confidence = Math.max(0, Math.min(1, Number(raw.confidence_score) || 0));
+    const requestedPersonalId = String((raw as { personal_head_id?: unknown }).personal_head_id || "review_required") as PersonalHeadId;
+    const personalHead = PERSONAL_TRANSACTION_HEADS[requestedPersonalId] || PERSONAL_TRANSACTION_HEADS.review_required;
     const material = !invalidAmount && amount > 2_500_000;
     const lowConfidence = confidence < 0.85;
-    const mustReview = raw.mapping_status !== "MAPPED" || !head || invalidAmount || invalidDate || unsupportedSubhead || lowConfidence || material;
+    const personalReview = !PERSONAL_TRANSACTION_HEADS[requestedPersonalId] || requestedPersonalId === "review_required";
+    const mustReview = raw.mapping_status !== "MAPPED" || !head || invalidAmount || invalidDate || unsupportedSubhead || lowConfidence || material || personalReview;
     const reasons = [String(raw.mapping_reason || "")];
     if (!head) reasons.push("No exact PRD account head was established.");
+    if (personalReview) reasons.push("No exact personal income/expense/transfer head was established.");
     if (unsupportedSubhead) reasons.push("The PRD defines no subhead IDs; the supplied subhead was rejected.");
     if (invalidAmount) reasons.push("The extracted amount is invalid.");
     if (invalidDate) reasons.push("The transaction date is missing or invalid.");
@@ -108,6 +168,9 @@ export function normalizeLedgerDocument(documentId: string, input: ModelLedgerDo
       target_subhead_id: "",
       target_subhead_name: "",
       posting_effect: raw.posting_effect === "INCREASE" ? "INCREASE" : "DECREASE",
+      personal_section: personalHead.section,
+      personal_head_id: requestedPersonalId in PERSONAL_TRANSACTION_HEADS ? requestedPersonalId : "review_required",
+      personal_head_name: personalHead.name,
       mapping_status: mustReview ? "REVIEW_REQUIRED" : "MAPPED",
       confidence_score: confidence,
       mapping_reason: reasons.filter(Boolean).join(" "),
@@ -140,6 +203,28 @@ export function normalizeLedgerDocument(documentId: string, input: ModelLedgerDo
 }
 
 export const accountHeadPrompt = Object.entries(PRD_ACCOUNT_HEADS)
+  .map(([id, head]) => `${id} | ${head.section} | ${head.name}`)
+  .join("\n");
+
+export const accountHeadIds = Object.keys(PRD_ACCOUNT_HEADS).map(Number);
+export const maxAccountHeadId = Math.max(...accountHeadIds);
+export function accountHeadName(category: unknown) {
+  return PRD_ACCOUNT_HEADS[String(category) as AccountHeadId]?.name || "Unknown / needs review";
+}
+export function accountHeadSection(category: unknown) {
+  return PRD_ACCOUNT_HEADS[String(category) as AccountHeadId]?.section || "";
+}
+export function isAssetCategory(category: unknown) {
+  return accountHeadSection(category) === "ASSETS";
+}
+export function isLiabilityCategory(category: unknown) {
+  return accountHeadSection(category) === "LIABILITIES";
+}
+export function isContingentCategory(category: unknown) {
+  return accountHeadSection(category) === "CONTINGENT";
+}
+
+export const personalHeadPrompt = Object.entries(PERSONAL_TRANSACTION_HEADS)
   .map(([id, head]) => `${id} | ${head.section} | ${head.name}`)
   .join("\n");
 

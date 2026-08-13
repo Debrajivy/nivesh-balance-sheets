@@ -1,0 +1,20 @@
+{
+  "version": "2026.08",
+  "effectiveDate": "2026-08-01",
+  "rules": {
+    "channels": {
+      "email": true,
+      "webPush": true,
+      "calendarIcs": true,
+      "inApp": true
+    },
+    "leadTimes": {
+      "statutory": "30,14,7,3,1,0",
+      "insurance": "21,7,3,0",
+      "debt": "7,0",
+      "investment": "14,3",
+      "dues": "7"
+    },
+    "escalateAfterHours": 48
+  }
+}

@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/server/db";
 import { requireCapability } from "@/lib/server/auth";
-import { AccessLog, Document, Entity, LineItem, Obligation } from "@/lib/server/models";
+import { AccessLog, BankTransaction, Document, Entity, LineItem, Obligation } from "@/lib/server/models";
 import { extractFinancialDocument } from "@/lib/server/document-extraction";
+import { maxAccountHeadId } from "@/lib/financial-document";
 
 export const runtime = "nodejs";
 const allowed = new Set(["application/pdf", "image/png", "image/jpeg", "text/csv", "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"]);
+const maxUploadBytes = 200 * 1024 * 1024;
 
 export async function POST(request: Request) {
   try {
@@ -14,7 +16,7 @@ export async function POST(request: Request) {
     const file = form.get("file");
     if (!(file instanceof File)) return NextResponse.json({ error: "Choose a document to upload" }, { status: 400 });
     if (!allowed.has(file.type)) return NextResponse.json({ error: "Upload a PDF, PNG, JPG, CSV, XLS, or XLSX file" }, { status: 400 });
-    if (file.size > 10 * 1024 * 1024) return NextResponse.json({ error: "File size must not exceed 10 MB" }, { status: 400 });
+    if (file.size > maxUploadBytes) return NextResponse.json({ error: "File size must not exceed 200 MB" }, { status: 400 });
     if (!process.env.OPENAI_API_KEY) return NextResponse.json({ error: "AI document processing is not configured. Add OPENAI_API_KEY to .env.local and restart the server." }, { status: 503 });
     await connectDB();
     if (!familyId) return NextResponse.json({ error: "No client family is assigned" }, { status: 400 });
@@ -33,9 +35,11 @@ export async function POST(request: Request) {
         if (item.positionRole === "opening") continue;
         const confidence = Math.max(0, Math.min(100, Number(item.confidence || 0)));
         const amount = Number(item.amount);
-        created.push(await LineItem.create({ familyOfficeId: membership.familyOfficeId, familyId, entityId: entity._id, category: Math.max(1, Math.min(12, Number(item.category || 1))), name: item.name, amount, costAmount: amount, basis: item.basis || "declared", confidence, asAtDate: new Date(item.asAtDate || Date.now()), freshnessState: "fresh", sourceDocumentId: document._id, sourceLocation: item.sourceLocation, positionRole: item.positionRole, confirmed: false, held: confidence < 85 || Math.abs(amount) > 2500000 }));
+        created.push(await LineItem.create({ familyOfficeId: membership.familyOfficeId, familyId, entityId: entity._id, category: Math.max(1, Math.min(maxAccountHeadId, Number(item.category || 19))), name: item.name, amount, costAmount: amount, basis: item.basis || "declared", confidence, asAtDate: new Date(item.asAtDate || Date.now()), freshnessState: "fresh", sourceDocumentId: document._id, sourceLocation: item.sourceLocation, positionRole: item.positionRole, confirmed: false, held: confidence < 85 || Math.abs(amount) > 2500000 }));
       }
       let obligationCount=0;for(const item of result.obligations){if(!item.title||!item.dueDate||!item.sourceLocation||!Number.isFinite(Number(item.amount)))continue;await Obligation.create({familyOfficeId:membership.familyOfficeId,familyId,entityId:entity._id,title:item.title,amount:Number(item.amount),dueDate:new Date(item.dueDate),category:item.category||"other",consequence:item.consequence||"",sourceDocumentId:document._id,sourceLocation:item.sourceLocation,acknowledged:false});obligationCount++}
+      const transactionRows=[];for(const txn of result.ledger.transactions){const transactionDate=/^\d{4}-\d{2}-\d{2}$/.test(txn.transaction_date)?new Date(txn.transaction_date):new Date(result.statementTo||Date.now());transactionRows.push({familyOfficeId:membership.familyOfficeId,familyId,entityId:entity._id,sourceDocumentId:document._id,sourceLineId:txn.source_line_id,transactionDate,originalNarration:txn.original_narration,referenceNumber:txn.reference_number,counterparty:txn.counterparty,amount:txn.amount,direction:txn.direction,transactionType:txn.transaction_type,targetSection:txn.target_section,targetHeadId:txn.target_head_id,targetHeadName:txn.target_head_name,postingEffect:txn.posting_effect,personalSection:txn.personal_section,personalHeadId:txn.personal_head_id,personalHeadName:txn.personal_head_name,mappingStatus:txn.mapping_status,confidenceScore:txn.confidence_score,mappingReason:txn.mapping_reason,sourceLocation:txn.source_line_id})}
+      if(transactionRows.length)await BankTransaction.insertMany(transactionRows);
       const needsConfirmation = created.length > 0 || result.ledger.unmapped_transactions.length > 0 || !result.ledger.validation.reconciled;
       await Document.findByIdAndUpdate(document._id, { status: needsConfirmation ? "needs_confirmation" : "clean", aiSummary: result.summary, documentType: result.documentType, accountNumberMasked: result.accountNumberMasked, statementFrom: result.statementFrom ? new Date(result.statementFrom) : undefined, statementTo: result.statementTo ? new Date(result.statementTo) : undefined, extractedData: result });
       await AccessLog.create({ familyOfficeId: membership.familyOfficeId, familyId, userId: user._id, action: "upload_and_extract", target: `document:${document._id}`, metadata: { filename: file.name, extractedItems: created.length, extractedObligations: obligationCount, extractedTransactions: result.ledger.transactions.length, reconciled: result.ledger.validation.reconciled } });

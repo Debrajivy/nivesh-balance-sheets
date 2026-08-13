@@ -1,5 +1,5 @@
 import "server-only";
-import { accountHeadPrompt, normalizeLedgerDocument, type LedgerDocument } from "@/lib/financial-document";
+import { accountHeadIds, accountHeadPrompt, normalizeLedgerDocument, personalHeadPrompt, PERSONAL_TRANSACTION_HEADS, PRD_ACCOUNT_HEADS, type LedgerDocument } from "@/lib/financial-document";
 
 export type ExtractedItem = {
   name: string;
@@ -43,12 +43,15 @@ const transactionProperties = {
   amount: { type: "number", minimum: 0 },
   direction: { type: "string", enum: ["DEBIT", "CREDIT"] },
   transaction_type: stringField,
-  target_section: { type: "string", enum: ["ASSETS", "LIABILITIES", ""] },
-  target_head_id: { type: "string", enum: ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", ""] },
+  target_section: { type: "string", enum: ["ASSETS", "LIABILITIES", "CONTINGENT", ""] },
+  target_head_id: { type: "string", enum: [...Object.keys(PRD_ACCOUNT_HEADS), ""] },
   target_head_name: stringField,
   target_subhead_id: { type: "string", enum: [""] },
   target_subhead_name: { type: "string", enum: [""] },
   posting_effect: { type: "string", enum: ["INCREASE", "DECREASE"] },
+  personal_section: { type: "string", enum: ["INCOME", "EXPENSE", "TRANSFER", "ASSET_MOVEMENT", "LIABILITY_MOVEMENT", "REVIEW"] },
+  personal_head_id: { type: "string", enum: Object.keys(PERSONAL_TRANSACTION_HEADS) },
+  personal_head_name: stringField,
   mapping_status: { type: "string", enum: ["MAPPED", "REVIEW_REQUIRED"] },
   confidence_score: { type: "number", minimum: 0, maximum: 1 },
   mapping_reason: stringField,
@@ -79,7 +82,7 @@ const extractionSchema = {
         properties: {
           name: stringField,
           amount: { type: "number" },
-          category: { type: "integer", enum: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] },
+          category: { type: "integer", enum: accountHeadIds },
           basis: { type: "string", enum: ["cost", "fair_value", "declared"] },
           confidence: { type: "number", minimum: 0, maximum: 100 },
           asAtDate: stringField,
@@ -158,10 +161,16 @@ Work in three stages for every visible source transaction: extract, classify, th
 The PRD authorizes exactly these balance-sheet heads:
 ${accountHeadPrompt}
 
-The PRD defines no subhead IDs or subhead names. Therefore target_subhead_id and target_subhead_name must always be empty strings. Never invent a head or subhead. Use REVIEW_REQUIRED, empty target fields, and a specific reason whenever an exact mapping cannot be supported.
+For bank-statement transaction analysis, also classify each transaction into exactly one personal income/expense/transfer head:
+${personalHeadPrompt}
+
+The PRD balance-sheet heads are for positions; personal transaction heads are for income, expense and cash-flow analysis. Do not post expenses as balance-sheet liabilities. A food, household, shopping or travel debit reduces Bank and cash on the balance sheet mapping, and is separately classified under the correct EXPENSE personal head. The PRD defines no balance-sheet subhead IDs or subhead names. Therefore target_subhead_id and target_subhead_name must always be empty strings. Never invent a balance-sheet head or personal transaction head. Use REVIEW_REQUIRED and personal_head_id "review_required" with a specific reason whenever an exact mapping cannot be supported.
 
 Mapping guidance:
 - Salary, interest, dividend, and ordinary expense entries in a bank statement affect head 1 Bank and cash; CREDIT increases it and DEBIT decreases it.
+- For expense debits, classify personal_head_id as specifically as the narration supports: household_expense, food_dining, groceries, shopping, travel, medical_health, education, utilities, rent_maintenance, insurance, tax_payment, emi_loan_payment, fees_charges, gifts_donations, or other_expense.
+- For income credits, classify personal_head_id as salary_income, business_income, interest_dividend_income, rental_income, refund_reimbursement, or other_income.
+- Own-account transfers and cash withdrawals are TRANSFER, not expense. Use own_account_transfer or cash_withdrawal when evidenced.
 - A supported securities purchase/SIP increases head 2; a supported securities sale decreases head 2.
 - A supported property purchase increases head 4; a supported property sale decreases head 4.
 - A supported loan repayment decreases head 9 or 10 only when the loan type is evidenced. Loan proceeds increase the evidenced liability head.
