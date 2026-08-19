@@ -6,7 +6,7 @@ import { extractFinancialDocument } from "@/lib/server/document-extraction";
 import { maxAccountHeadId } from "@/lib/financial-document";
 
 export const runtime = "nodejs";
-const allowed = new Set(["application/pdf", "image/png", "image/jpeg", "text/csv", "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"]);
+const allowedExtensions = new Set(["pdf", "png", "jpg", "jpeg", "csv", "xlsx", "xls"]);
 const maxUploadBytes = 200 * 1024 * 1024;
 
 export async function POST(request: Request) {
@@ -15,7 +15,9 @@ export async function POST(request: Request) {
     const form = await request.formData();
     const file = form.get("file");
     if (!(file instanceof File)) return NextResponse.json({ error: "Choose a document to upload" }, { status: 400 });
-    if (!allowed.has(file.type)) return NextResponse.json({ error: "Upload a PDF, PNG, JPG, CSV, XLS, or XLSX file" }, { status: 400 });
+    const extension = file.name.split(".").pop()?.toLowerCase() || "";
+    if (!allowedExtensions.has(extension)) return NextResponse.json({ error: "Upload a PDF, PNG, JPG, CSV, or XLSX file" }, { status: 400 });
+    if (extension === "xls") return NextResponse.json({ error: "Legacy .xls files are not supported safely. Open the file in Excel and save it as .xlsx, then upload it again." }, { status: 415 });
     if (file.size > maxUploadBytes) return NextResponse.json({ error: "File size must not exceed 200 MB" }, { status: 400 });
     if (!process.env.OPENAI_API_KEY) return NextResponse.json({ error: "AI document processing is not configured. Add OPENAI_API_KEY to .env.local and restart the server." }, { status: 503 });
     await connectDB();
