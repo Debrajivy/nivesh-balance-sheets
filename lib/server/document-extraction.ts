@@ -204,7 +204,11 @@ Validation rules: count every source transaction and output exactly one transact
 
 export async function extractFinancialDocument(file: File, base64: string, documentId: string): Promise<Extraction> {
   if (!process.env.OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not configured");
-  const response = await fetch("https://api.openai.com/v1/responses", {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), process.env.NETLIFY ? 50_000 : 180_000);
+  let response: Response;
+  try {
+  response = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
     body: JSON.stringify({
@@ -228,7 +232,14 @@ export async function extractFinancialDocument(file: File, base64: string, docum
         },
       },
     }),
+    signal: controller.signal,
   });
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") throw new Error("Document reading exceeded the production time limit. Compress or split the document, or upload the figures as XLSX.");
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
   const data = await response.json() as Record<string, unknown>;
   if (!response.ok) {
     const message = typeof data.error === "object" && data.error

@@ -6,6 +6,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Badge, Notice } from "./ui";
 
 type DocumentRow = { _id: string; filename: string; source?: string; status?: string; size?: number; documentType?: string; aiSummary?: string; createdAt?: string };
+const NETLIFY_UPLOAD_LIMIT = 4 * 1024 * 1024;
+
+async function responseBody(response: Response): Promise<Record<string, unknown>> {
+  const text = await response.text();
+  if (!text) return {};
+  try { return JSON.parse(text) as Record<string, unknown>; } catch { return { error: text.startsWith("<") ? "The production server ended document processing unexpectedly." : text }; }
+}
 
 export function DocumentsWorkspace({ compactButton = false, sourceFilter, processingOnly = false }: { compactButton?: boolean; sourceFilter?: "upload" | "email"; processingOnly?: boolean }) {
   const input = useRef<HTMLInputElement>(null);
@@ -23,13 +30,25 @@ export function DocumentsWorkspace({ compactButton = false, sourceFilter, proces
 
   async function upload(file?: File) {
     if (!file) return;
+    const hostedOnNetlify = location.hostname.endsWith("netlify.app") || location.hostname === "nivesh-balance-sheets.netlify.app";
+    if (hostedOnNetlify && file.size > NETLIFY_UPLOAD_LIMIT) {
+      setMessage(`This file is ${(file.size / 1048576).toFixed(1)} MB. Netlify accepts financial uploads up to 4 MB. Compress or split the document and upload each part.`);
+      if (input.current) input.current.value = "";
+      return;
+    }
     setUploading(true); setMessage(`Uploading and reading ${file.name}...`);
-    const form = new FormData(); form.append("file", file);
-    const response = await fetch("/api/documents/upload", { method: "POST", body: form });
-    const data = await response.json();
-    setMessage(response.ok ? `Uploaded successfully. AI extracted ${data.transactions?.length || 0} transaction(s); ${data.unmapped_transactions?.length || 0} need review. Reconciled: ${data.validation?.reconciled ? "yes" : "no"}.` : data.error || "Upload failed");
-    setUploading(false); await load();
-    if (input.current) input.current.value = "";
+    try {
+      const form = new FormData(); form.append("file", file);
+      const response = await fetch("/api/documents/upload", { method: "POST", body: form });
+      const data = await responseBody(response);
+      const productionFailure = response.status === 502 ? "Production processing exceeded the hosting limit. Try an XLSX file or split/compress the PDF into smaller parts." : "Upload failed";
+      setMessage(response.ok ? `Uploaded successfully. AI extracted ${Array.isArray(data.transactions) ? data.transactions.length : 0} transaction(s); ${Array.isArray(data.unmapped_transactions) ? data.unmapped_transactions.length : 0} need review. Reconciled: ${(data.validation as Record<string, unknown> | undefined)?.reconciled ? "yes" : "no"}.` : String(data.error || productionFailure));
+    } catch {
+      setMessage("The production server could not complete this upload. Check your connection, then retry with a file under 4 MB.");
+    } finally {
+      setUploading(false); await load();
+      if (input.current) input.current.value = "";
+    }
   }
 
   const filtered = useMemo(() => documents.filter((document) => (!sourceFilter || document.source === sourceFilter) && (!processingOnly || ["queued", "processing", "needs_confirmation", "failed"].includes(String(document.status))) && (status === "all" || document.status === status) && `${document.filename} ${document.documentType || ""} ${document.aiSummary || ""}`.toLowerCase().includes(search.toLowerCase())), [documents, processingOnly, search, sourceFilter, status]);
